@@ -26,10 +26,6 @@ class Protocol(Enum):
     X = 2
 
     @classmethod
-    def calc_bcc(cls, packet):
-        return sum(packet) & 0xffff
-
-    @classmethod
     def encode_word(cls, w) -> bytearray:
         b2 = w.to_bytes(2, "big")
         b4 = bytearray()
@@ -39,19 +35,23 @@ class Protocol(Enum):
         b4.append(0x30 + (b2[1] & 0xf))
         return b4
 
+    def calc_bcc(self, packet) -> bytearray:
+        return self.encode_word(sum(packet) & 0xffff)
+
     def format_packet(self, seq, cmd, data) -> bytearray:
         seq_byte = seq.to_bytes(1, "big")
 
         if self.value == 1:     # Protocol.OLD
             packet_len = (0x24 + len(data)).to_bytes(1, "big")
-            cmd_byte = cmd.to_bytes(1, "big")
-            packet = packet_len + seq_byte + cmd_byte + data + POSTAMBLE
+            cmd_code = cmd.to_bytes(1, "big")
         else:                   # Protocol.X
-            packet_len = 0x002A + len(data)
-            packet = self.encode_word(packet_len) + seq_byte + self.encode_word(cmd) + data + POSTAMBLE
+            packet_len = self.encode_word(0x002a + len(data))
+            cmd_code = self.encode_word(cmd)
 
+        packet = packet_len + seq_byte + cmd_code + data + POSTAMBLE
         bcc = self.calc_bcc(packet)
-        return PREAMBLE + packet + self.encode_word(bcc) + TERMINATOR
+
+        return PREAMBLE + packet + bcc + TERMINATOR
 
     def get_data(self, packet):
         sep = packet.find(SEPARATOR)
@@ -131,7 +131,7 @@ class EthernetConnector:
 
     def write_data(self, data):
         self.sock.sendall(data)
-        self.sock.settimeout(0.5)  # 500ms i/o timeout
+        self.sock.settimeout(0.5)  # 500ms read timeout
 
     def read_data(self) -> bytearray:
         response = bytearray()
@@ -156,7 +156,7 @@ class EthernetConnector:
 
 class FiscalDevice:
 
-    def __init__(self, connector, protocol=Protocol.X):
+    def __init__(self, connector, protocol):
         self.connector = connector
         self.protocol = protocol
         self.seq = SEQ_START
@@ -172,7 +172,6 @@ class FiscalDevice:
     def disconnect(self):
         self.connector.disconnect()
         self.connected = False
-        return True
 
     def execute(self, cmd, data=b''):
         if not self.connected:
