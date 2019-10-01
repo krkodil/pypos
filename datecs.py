@@ -40,11 +40,11 @@ class Protocol(Enum):
         return b4
 
     def format_packet(self, seq, cmd, data) -> bytearray:
-        cmd_byte = cmd.to_bytes(1, "big")
         seq_byte = seq.to_bytes(1, "big")
 
         if self.value == 1:     # Protocol.OLD
             packet_len = (0x24 + len(data)).to_bytes(1, "big")
+            cmd_byte = cmd.to_bytes(1, "big")
             packet = packet_len + seq_byte + cmd_byte + data + POSTAMBLE
         else:                   # Protocol.X
             packet_len = 0x002A + len(data)
@@ -111,7 +111,6 @@ class SerialConnector:
 
                 response.append(b)
 
-        # print(response)
         return response
 
     def disconnect(self):
