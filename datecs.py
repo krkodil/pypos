@@ -11,8 +11,11 @@ NAK = 0x15
 SYN = 0x16
 TRM = 0x03
 
-CMD_PROGRAMMING = 0xff
-CMD_GET_DATE_TIME = 0x3e
+CMD_PROGRAMMING = 0xff          # Programming {Name}<SEP>{Index}<SEP>{Value}<SEP>
+CMD_GET_DIAGNOSTIC_INFO = 0x5a  # Diagnostic information
+
+CMD_GET_DATE_TIME = 0x3e        #
+CMD_SET_DATETIME = 0x3d         # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<SEP>
 
 
 class Protocol(Enum):
@@ -26,12 +29,12 @@ class NakException(Exception):
 
 class FiscalResponse:
     def __init__(self, packet, protocol):
-        sep = packet.find(SEPARATOR)-1
+        sep = packet.find(SEPARATOR)
         if sep > 0:
             if protocol == Protocol.X:
-                self.data = packet[12:sep].decode()
+                self.data = packet[12:sep-1].decode()
             else:
-                self.data = packet[7:sep].decode()
+                self.data = packet[4:sep].decode()
         else:
             self.data = None
 
@@ -65,7 +68,9 @@ class SerialConnector(Connector):
     def connect(self):
         self.com.port = self.port
         self.com.baudrate = self.speed
+        self.com.timeout = 0.3  # 300ms red timeout
         self.com.open()
+        return self.com.is_open
 
     def write_data(self, data):
         self.com.write(data)
@@ -75,7 +80,7 @@ class SerialConnector(Connector):
         response = bytearray()
         terminated = False
         while not terminated:
-            rec = self.com.read(255)
+            rec = self.com.read()
             for b in rec:
                 if b == SYN:
                     continue
@@ -86,6 +91,7 @@ class SerialConnector(Connector):
 
                 response.append(b)
 
+        # print(response)
         return response
 
     def disconnect(self):
@@ -101,12 +107,12 @@ class EthernetConnector(Connector):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def connect(self):
-        self.sock.settimeout(5.0)
+        self.sock.settimeout(2.0)   # 2sec connection timeout
         self.sock.connect(self.address)
 
     def write_data(self, data):
         self.sock.sendall(data)
-        self.sock.settimeout(2.0)
+        self.sock.settimeout(0.5)   # 500ms i/o timeout
 
     def read_data(self) -> bytearray:
         response = bytearray()
@@ -204,11 +210,24 @@ class FiscalDevice:
 
 
 if __name__ == '__main__':
-    fd = FiscalDevice(EthernetConnector('192.168.0.36', 4999), Protocol.X)
+    fd = FiscalDevice(EthernetConnector('192.168.8.100', 4999), Protocol.X)
     if fd.connect():
         try:
+            print('\nEthernet connected')
             fr = fd.execute(CMD_PROGRAMMING, b'IDnumber\t\t\t')
             print('IDnumber:', fr.data)
+
+            fr = fd.execute(CMD_GET_DATE_TIME)
+            print('DateTime:', fr.data)
+        finally:
+            fd.disconnect()
+
+    fd = FiscalDevice(SerialConnector('COM1', 115200), Protocol.OLD)
+    if fd.connect():
+        try:
+            print('\nSerial connected')
+            fr = fd.execute(CMD_GET_DIAGNOSTIC_INFO)
+            print('Diagnostic Info:', fr.data)
 
             fr = fd.execute(CMD_GET_DATE_TIME)
             print('DateTime:', fr.data)
