@@ -14,11 +14,11 @@ TRM = 0x03
 SEQ_START = 0x20
 SEQ_MAX = 0xff
 
-CMD_PROGRAMMING = 0xff          # X Only: Programming {Name}<SEP>{Index}<SEP>{Value}<SEP>
+CMD_PROGRAMMING = 0xff  # X Only: Programming {Name}<SEP>{Index}<SEP>{Value}<SEP>
 CMD_GET_DIAGNOSTIC_INFO = 0x5a  # Diagnostic information
 
-CMD_GET_DATE_TIME = 0x3e        #
-CMD_SET_DATETIME = 0x3d         # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<SEP>
+CMD_GET_DATE_TIME = 0x3e  #
+CMD_SET_DATETIME = 0x3d  # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<SEP>
 
 
 class Protocol(Enum):
@@ -35,16 +35,24 @@ class Protocol(Enum):
         b4.append(0x30 + (b2[1] & 0xf))
         return b4
 
+    @classmethod
+    def get_status(cls, packet):
+        sep = packet.find(SEPARATOR)
+        if sep > 0:
+            return packet[sep+1:sep + 8]
+        else:
+            return None
+
     def calc_bcc(self, packet) -> bytearray:
         return self.encode_word(sum(packet) & 0xffff)
 
     def format_packet(self, seq, cmd, data) -> bytearray:
         seq_byte = seq.to_bytes(1, "big")
 
-        if self.value == 1:     # Protocol.OLD
+        if self.value == 1:  # Protocol.OLD
             packet_len = (0x24 + len(data)).to_bytes(1, "big")
             cmd_code = cmd.to_bytes(1, "big")
-        else:                   # Protocol.X
+        else:  # Protocol.X
             packet_len = self.encode_word(0x002a + len(data))
             cmd_code = self.encode_word(cmd)
 
@@ -58,20 +66,56 @@ class Protocol(Enum):
         if sep > 0:
             if self.value == 1:  # Protocol.OLD
                 return packet[4:sep].decode()
-            else:                # Protocol.X
+            else:  # Protocol.X
                 return packet[12:sep - 1].decode()
         else:
             return None
 
 
 class FiscalResponse:
+    def bit_on(self, x, n):
+        return self.status_bytes[x] & 1 << n-1 != 0
+
     def __init__(self, packet, protocol):
         self.data = protocol.get_data(packet)
+        self.status_bytes = protocol.get_status(packet)
         self.bcc = None
-        self.ok = False
-        self.status_bits = None
+        self.ok = not (self.general_error() or self.cover_open())
         self.error_code = 0
         self.error_message = ''
+
+    def cover_open(self):
+        return self.bit_on(0, 6)
+
+    def general_error(self):
+        return self.bit_on(0, 5)
+
+    def mechanism_failure(self):
+        return self.bit_on(0, 4)
+
+    def rtc_not_synchronized(self):
+        return self.bit_on(0, 2)
+
+    def invalid_command(self):
+        return self.bit_on(0, 1)
+
+    def syntax_error(self):
+        return self.bit_on(0, 0)
+
+    def command_not_permitted(self):
+        return self.bit_on(1, 1)
+
+    def overflow_during_command(self):
+        return self.bit_on(1, 0)
+
+    def nonfiscal_receipt_open(self):
+        return self.bit_on(2, 5)
+
+    def fiscal_receipt_open(self):
+        return self.bit_on(2, 3)
+
+    def end_of_paper(self):
+        return self.bit_on(2, 0)
 
 
 class NakException(Exception):
@@ -184,10 +228,10 @@ class FiscalDevice:
 
         self.last_packet = self.protocol.format_packet(self.seq, cmd, data)
 
-        self.connector.write_data(self.last_packet)      # send cmd
+        self.connector.write_data(self.last_packet)  # send cmd
         try:
             response_data = self.connector.read_data()
-        except NakException:                             # NAK from ECR
+        except NakException:  # NAK from ECR
             self.connector.write_data(self.last_packet)  # repeat last cmd with same seq
             response_data = self.connector.read_data()
 
@@ -216,5 +260,8 @@ if __name__ == '__main__':
 
             fr = fd.execute(CMD_GET_DATE_TIME)
             print('DateTime:', fr.data)
+
+            print('Status bytes: ', fr.status_bytes)
+            print('Cover is open', fr.cover_open())
         finally:
             fd.disconnect()
