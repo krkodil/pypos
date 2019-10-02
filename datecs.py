@@ -38,10 +38,7 @@ class Protocol(Enum):
     @classmethod
     def get_status(cls, packet):
         sep = packet.find(SEPARATOR)
-        if sep > 0:
-            return packet[sep+1:sep + 8]
-        else:
-            return None
+        return packet[sep + 1:sep + 8]
 
     def calc_bcc(self, packet) -> bytearray:
         return self.encode_word(sum(packet) & 0xffff)
@@ -52,7 +49,7 @@ class Protocol(Enum):
         if self.value == 1:  # Protocol.OLD
             packet_len = (0x24 + len(data)).to_bytes(1, "big")
             cmd_code = cmd.to_bytes(1, "big")
-        else:  # Protocol.X
+        else:                # Protocol.X
             packet_len = self.encode_word(0x002a + len(data))
             cmd_code = self.encode_word(cmd)
 
@@ -63,13 +60,10 @@ class Protocol(Enum):
 
     def get_data(self, packet):
         sep = packet.find(SEPARATOR)
-        if sep > 0:
-            if self.value == 1:  # Protocol.OLD
-                return packet[4:sep].decode()
-            else:  # Protocol.X
-                return packet[12:sep - 1].decode()
-        else:
-            return None
+        if self.value == 1:  # Protocol.OLD
+            return packet[4:sep].decode()
+        else:                # Protocol.X
+            return packet[12:sep - 1].decode()
 
 
 class FiscalResponse:
@@ -84,38 +78,17 @@ class FiscalResponse:
         self.error_code = 0
         self.error_message = ''
 
-    def cover_open(self):
-        return self.bit_on(0, 6)
-
-    def general_error(self):
-        return self.bit_on(0, 5)
-
-    def mechanism_failure(self):
-        return self.bit_on(0, 4)
-
-    def rtc_not_synchronized(self):
-        return self.bit_on(0, 2)
-
-    def invalid_command(self):
-        return self.bit_on(0, 1)
-
-    def syntax_error(self):
-        return self.bit_on(0, 0)
-
-    def command_not_permitted(self):
-        return self.bit_on(1, 1)
-
-    def overflow_during_command(self):
-        return self.bit_on(1, 0)
-
-    def nonfiscal_receipt_open(self):
-        return self.bit_on(2, 5)
-
-    def fiscal_receipt_open(self):
-        return self.bit_on(2, 3)
-
-    def end_of_paper(self):
-        return self.bit_on(2, 0)
+    def cover_open(self): return self.bit_on(0, 6)
+    def general_error(self): return self.bit_on(0, 5)
+    def mechanism_failure(self): return self.bit_on(0, 4)
+    def rtc_not_synchronized(self): return self.bit_on(0, 2)
+    def invalid_command(self): return self.bit_on(0, 1)
+    def syntax_error(self): return self.bit_on(0, 0)
+    def command_not_permitted(self): return self.bit_on(1, 1)
+    def overflow_during_command(self): return self.bit_on(1, 0)
+    def nonfiscal_receipt_open(self): return self.bit_on(2, 5)
+    def fiscal_receipt_open(self): return self.bit_on(2, 3)
+    def end_of_paper(self): return self.bit_on(2, 0)
 
 
 class NakException(Exception):
@@ -248,9 +221,12 @@ if __name__ == '__main__':
 
             fr = fd.execute(CMD_GET_DATE_TIME)
             print('DateTime:', fr.data)
+
+            print('Status bytes:', fr.status_bytes)
+            print('Cover is open:', fr.cover_open())
         finally:
             fd.disconnect()
-
+    '''
     fd = FiscalDevice(SerialConnector('COM1', 115200), Protocol.OLD)
     if fd.connect():
         try:
@@ -261,7 +237,6 @@ if __name__ == '__main__':
             fr = fd.execute(CMD_GET_DATE_TIME)
             print('DateTime:', fr.data)
 
-            print('Status bytes: ', fr.status_bytes)
-            print('Cover is open', fr.cover_open())
         finally:
             fd.disconnect()
+    '''
