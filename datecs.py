@@ -14,11 +14,11 @@ TRM = 0x03
 SEQ_START = 0x20
 SEQ_MAX = 0xff
 
-CMD_PROGRAMMING = 0xff  # X Only: Programming {Name}<SEP>{Index}<SEP>{Value}<SEP>
+CMD_PROGRAMMING = 0xff          # X Only: Programming {Name}<SEP>{Index}<SEP>{Value}<SEP>
 CMD_GET_DIAGNOSTIC_INFO = 0x5a  # Diagnostic information
 
-CMD_GET_DATE_TIME = 0x3e  #
-CMD_SET_DATETIME = 0x3d  # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<SEP>
+CMD_GET_DATE_TIME = 0x3e        #
+CMD_SET_DATETIME = 0x3d         # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<SEP>
 
 
 class Protocol(Enum):
@@ -113,22 +113,8 @@ class SerialConnector:
         self.com.write(data)
         self.com.flush()
 
-    def read_data(self) -> bytearray:
-        response = bytearray()
-        terminated = False
-        while not terminated:
-            rec = self.com.read()
-            for b in rec:
-                if b == SYN:
-                    continue
-                if b == NAK:
-                    raise NakException
-                if b == TRM:
-                    terminated = True
-
-                response.append(b)
-
-        return response
+    def read_data(self):
+        return self.com.read()
 
     def disconnect(self):
         self.com.close()
@@ -150,22 +136,8 @@ class EthernetConnector:
         self.sock.sendall(data)
         self.sock.settimeout(0.5)  # 500ms read timeout
 
-    def read_data(self) -> bytearray:
-        response = bytearray()
-        terminated = False
-        while not terminated:
-            rec = self.sock.recv(1024)
-            for b in rec:
-                if b == SYN:
-                    continue
-                if b == NAK:
-                    raise NakException
-                if b == TRM:
-                    terminated = True
-
-                response.append(b)
-
-        return response
+    def read_data(self):
+        return self.sock.recv(1024)
 
     def disconnect(self):
         self.sock.close()
@@ -190,6 +162,26 @@ class FiscalDevice:
         self.connector.disconnect()
         self.connected = False
 
+    def send_last_packet(self):
+        self.connector.write_data(self.last_packet)
+
+    def wait_response(self):
+        response = bytearray()
+        terminated = False
+        while not terminated:
+            rec = self.connector.read_data()
+            for b in rec:
+                if b == SYN:
+                    continue
+                if b == NAK:
+                    raise NakException
+                if b == TRM:
+                    terminated = True
+
+                response.append(b)
+
+        return response
+
     def execute(self, cmd, data=b''):
         if not self.connected:
             raise Exception('Not connected')
@@ -201,12 +193,12 @@ class FiscalDevice:
 
         self.last_packet = self.protocol.format_packet(self.seq, cmd, data)
 
-        self.connector.write_data(self.last_packet)  # send cmd
+        self.send_last_packet()     # send cmd
         try:
-            response_data = self.connector.read_data()
+            response_data = self.wait_response()
         except NakException:  # NAK from ECR
-            self.connector.write_data(self.last_packet)  # repeat last cmd with same seq
-            response_data = self.connector.read_data()
+            self.send_last_packet()  # repeat last cmd (with same seq)
+            response_data = self.wait_response()
 
         return FiscalResponse(response_data, self.protocol)
 
@@ -237,6 +229,8 @@ if __name__ == '__main__':
             fr = fd.execute(CMD_GET_DATE_TIME)
             print('DateTime:', fr.data)
 
+            print('Status bytes:', fr.status_bytes)
+            print('Cover is open:', fr.cover_open())
         finally:
             fd.disconnect()
     '''
