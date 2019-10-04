@@ -4,6 +4,10 @@ from protocol import DatecsProtocol
 from connector import NakException
 from response import FiscalResponse
 
+NAK = 0x15
+SYN = 0x16
+TRM = 0x03
+
 CMD_PROGRAMMING = 0xff          # X Only: Programming {Name}<SEP>{Index}<SEP>{Value}<SEP>
 CMD_GET_DIAGNOSTIC_INFO = 0x5a  # Diagnostic information
 
@@ -13,7 +17,7 @@ CMD_SET_DATETIME = 0x3d   # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<S
 CMD_OPEN_FISCAL_RECEIPT = 0x30  # {OpCode}<SEP>{OpPwd}<SEP>{NSale}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
 
 
-class FiscalDevice:
+class DatecsFiscalDevice:
 
     def __init__(self, connector, protocol):
         self.connector = connector
@@ -31,18 +35,38 @@ class FiscalDevice:
         self.connector.disconnect()
         self.connected = False
 
+    def send_last_packet(self):
+        self.connector.write_data(self.last_packet)
+
+    def wait_response(self):
+        response = bytearray()
+        terminated = False
+        while not terminated:
+            rec = self.connector.read_data()
+            for b in rec:
+                if b == SYN:
+                    continue
+                if b == NAK:
+                    raise NakException
+                if b == TRM:
+                    terminated = True
+
+                response.append(b)
+
+        return response
+
     def execute(self, cmd, data=b''):
         if not self.connected:
             raise Exception('Not connected')
 
         self.last_packet = self.protocol.format_packet(cmd, data)
 
-        self.connector.write_data(self.last_packet)  # send cmd
+        self.send_last_packet()  # send cmd
         try:
-            response_data = self.connector.read_data()
+            response_data = self.wait_response()
         except NakException:  # NAK from ECR
-            self.connector.write_data(self.last_packet)  # repeat last cmd with same seq
-            response_data = self.connector.read_data()
+            self.send_last_packet()  # repeat last cmd (with same seq)
+            response_data = self.wait_response()
 
         return FiscalResponse(response_data, self.protocol)
 
@@ -58,7 +82,7 @@ class FiscalDevice:
     def open_fiscal_receipt(self, operator, password, work_place, n_sale):
         data = str(operator) + self.protocol.SEP + str(password) + self.protocol.SEP
         if n_sale is not None:
-            data +=  n_sale + self.protocol.SEP
+            data += n_sale + self.protocol.SEP
         data += str(work_place) + self.protocol.SEP + self.protocol.SEP
         fr = self.execute(CMD_OPEN_FISCAL_RECEIPT, bytearray(data))
         return fr.ok
@@ -73,4 +97,3 @@ class FiscalDevice:
             self.open_fiscal_receipt(bon.operator, bon.password, bon.work_place, bon.n_sale)
         else:
             self.open_storno_document()
-

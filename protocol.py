@@ -5,10 +5,6 @@ POSTAMBLE = b'\x05'
 TERMINATOR = b'\x03'
 SEPARATOR = b'\x04'
 
-NAK = 0x15
-SYN = 0x16
-TRM = 0x03
-
 SEQ_START = 0x20
 SEQ_MAX = 0xff
 
@@ -19,7 +15,7 @@ class DatecsProtocol(Enum):
 
     def __init__(self, value):
         self.seq = SEQ_START
-        if self.value == 1:  # OLD
+        if value == 1:       # OLD
             self.SEP = ','
         else:                # X
             self.SEP = '\t'

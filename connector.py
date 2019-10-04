@@ -1,6 +1,5 @@
 import socket
 import serial
-from protocol import (SYN, NAK, TRM)
 
 
 class NakException(Exception):
@@ -25,22 +24,8 @@ class SerialConnector:
         self.com.write(data)
         self.com.flush()
 
-    def read_data(self) -> bytearray:
-        response = bytearray()
-        terminated = False
-        while not terminated:
-            rec = self.com.read()
-            for b in rec:
-                if b == SYN:
-                    continue
-                if b == NAK:
-                    raise NakException
-                if b == TRM:
-                    terminated = True
-
-                response.append(b)
-
-        return response
+    def read_data(self):
+        return self.com.read()
 
     def disconnect(self):
         self.com.close()
@@ -62,21 +47,8 @@ class EthernetConnector:
         self.sock.sendall(data)
         self.sock.settimeout(0.5)  # 500ms read timeout
 
-    def read_data(self) -> bytearray:
-        response = bytearray()
-        terminated = False
-        while not terminated:
-            rec = self.sock.recv(1024)
-            for b in rec:
-                if b == SYN:
-                    continue
-                if b == NAK:
-                    raise NakException
-                if b == TRM:
-                    terminated = True
-
-                response.append(b)
-
+    def read_data(self) :
+        return self.sock.recv(1024)
         return response
 
     def disconnect(self):
