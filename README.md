@@ -24,8 +24,8 @@ POS and ECR related tools
  <br> 
  Ethernet connection:
  <pre>
-    fd = FiscalDevice(EthernetConnector('192.1681.1.2', 4999), Protocol.X)
+    fd = DatecsFiscalDevice(EthernetConnector('192.168.8.100', 4999), DatecsProtocol.X)
     fd.connect()
-    print(fd.execute(CMD_GET_DATE_TIME).data)
-    fd.disconnect() 
+    print(fd.get_date_time())
+    fd.disconnect()
  </pre>
