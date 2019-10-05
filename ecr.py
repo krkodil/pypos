@@ -105,10 +105,14 @@ class DatecsFiscalDevice:
     # Syntax: {OpCode}<SEP>{OpPwd}<SEP>{TillNmb}<SEP>{Storno}<SEP>{DocNum}<SEP>{DateTime}<SEP>
     #         {FMNumber}<SEP>{Invoice}<SEP>{ToInvoice}<SEP>{Reason}<SEP>{NSale}<SEP>
     def open_storno_document(self):
-        pass
+        pass    # todo ...
 
     def print(self, bon):
         if bon.storno_reason is None:
             self.open_fiscal_receipt(bon.operator, bon.password, bon.work_place, bon.n_sale)
         else:
             self.open_storno_document()
+
+        # todo: add articles
+
+        # todo: close bon
