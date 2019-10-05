@@ -64,4 +64,4 @@ class DatecsProtocol(Enum):
         if self.value == 1:  # Protocol.OLD
             return packet[4:sep].decode()
         else:                # Protocol.X
-            return packet[12:sep - 1].decode()
+            return packet[10:sep - 1].decode()

@@ -5,11 +5,18 @@ class FiscalResponse:
 
     def __init__(self, packet, protocol):
         self.data = protocol.get_data(packet)
+        self.values = self.data.split(protocol.SEP)
         self.status_bytes = protocol.get_status(packet)
         self.bcc = None
         self.ok = not (self.general_error() or self.cover_open())
         self.error_code = 0
         self.error_message = ''
+
+    def no_errors(self, err_index, error_list):
+        self.error_code = int(self.values[err_index])
+        self.error_message = error_list.get_message(self.error_code)
+        self.ok = self.ok & (self.error_code is 0)
+        return self.ok
 
     def cover_open(self): return self.bit_on(0, 6)
     def general_error(self): return self.bit_on(0, 5)
