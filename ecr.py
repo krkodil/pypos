@@ -13,7 +13,7 @@ CMD_PROGRAMMING = 0xff          # X Only: Programming {Name}<SEP>{Index}<SEP>{Va
 CMD_GET_DIAGNOSTIC_INFO = 0x5a  # Diagnostic information
 
 CMD_GET_DATE_TIME = 0x3e  #
-CMD_SET_DATETIME = 0x3d   # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<SEP>
+CMD_SET_DATE_TIME = 0x3d   # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<SEP>
 
 CMD_OPEN_FISCAL_RECEIPT = 0x30  # {OpCode}<SEP>{OpPwd}<SEP>{NSale}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
 
@@ -89,13 +89,28 @@ class DatecsFiscalDevice:
         else:
             raise DatecsError('GET_DATE_TIME', fr.error_code, fr.error_message)
 
-    # Syntax 1: {OpCode}<SEP>{OpPwd}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
-    # Syntax 2: {OpCode}<SEP>{OpPwd}<SEP>{NSale}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
+    def set_date_time(self, date_time):
+        # OLD: DD-MM-YY HH:MM[:SS];
+        # X: DD-MM-YY hh:mm:ss DST<SEP>
+        if self.protocol == DatecsProtocol.X:
+            data = date_time.strftime('%d-%m-%y %H:%M:%S DST')
+        else:
+            data = date_time.strftime('%d-%m-%y %H:%M:%S')
+
+        fr = self.execute(CMD_SET_DATE_TIME, bytearray(data + self.protocol.SEP))
+        if fr.no_errors(0, self.error_list):
+            return fr.ok
+        else:
+            raise DatecsError('SET_DATE_TIME', fr.error_code, fr.error_message)
+
     def open_fiscal_receipt(self, operator, password, work_place, n_sale):
+        # Syntax 1: {OpCode}<SEP>{OpPwd}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
+        # Syntax 2: {OpCode}<SEP>{OpPwd}<SEP>{NSale}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
         data = str(operator) + self.protocol.SEP + str(password) + self.protocol.SEP
         if n_sale is not None:
             data += n_sale + self.protocol.SEP
         data += str(work_place) + self.protocol.SEP + self.protocol.SEP
+
         fr = self.execute(CMD_OPEN_FISCAL_RECEIPT, bytearray(data))
         if fr.no_errors(0, self.error_list):
             return fr.ok
