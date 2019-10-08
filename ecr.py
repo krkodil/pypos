@@ -97,7 +97,8 @@ class DatecsFiscalDevice:
         else:
             data = date_time.strftime('%d-%m-%y %H:%M:%S')
 
-        fr = self.execute(CMD_SET_DATE_TIME, bytearray(data + self.protocol.SEP))
+        data = data + self.protocol.SEP
+        fr = self.execute(CMD_SET_DATE_TIME, bytearray(data, 'ascii'))
         if fr.no_errors(0, self.error_list):
             return fr.ok
         else:
