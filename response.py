@@ -9,9 +9,10 @@ class FiscalResponse:
         self.error_message = ''
 
     def no_errors(self, err_index, error_list):
-        self.error_code = int(self.values[err_index])
-        self.error_message = error_list.get_message(self.error_code)
-        self.ok = self.ok & self.error_code is 0
+        if err_index >= 0:
+            self.error_code = int(self.values[err_index])
+            self.error_message = error_list.get_message(self.error_code)
+            self.ok = self.ok & self.error_code is 0
         return self.ok
 
     def bit_on(self, x, n):

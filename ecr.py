@@ -33,7 +33,6 @@ class DatecsFiscalDevice:
         self.protocol = protocol
         self.error_list = DatecsErrors()
         self.last_packet = None
-        self.last_packet = None
         self.connected = False
 
     def connect(self):
@@ -77,15 +76,20 @@ class DatecsFiscalDevice:
         except NakException:  # NAK from ECR
             self.send_last_packet()  # repeat last cmd (with same seq)
             response_data = self.wait_response()
+
         return FiscalResponse(response_data, self.protocol)
 
     def get_date_time(self):
         fr = self.execute(CMD_GET_DATE_TIME)
-        if fr.no_errors(0, self.error_list):
+        if self.protocol == DatecsProtocol.X:
+            err_index = 0
+        else:
+            err_index = -1
+        if fr.no_errors(err_index, self.error_list):
             if self.protocol == DatecsProtocol.X:
                 return datetime.strptime(fr.values[1], '%d-%m-%y %H:%M:%S DST')  # 02-10-19 21:29:42 DST
             elif self.protocol == DatecsProtocol.OLD:
-                return datetime.strptime(fr.values[1], '%d-%m-%y %H:%M:%S')  # 02-10-19 21:29:42
+                return datetime.strptime(fr.values[0], '%d-%m-%y %H:%M:%S')  # 02-10-19 21:29:42
         else:
             raise DatecsError('GET_DATE_TIME', fr.error_code, fr.error_message)
 
@@ -93,13 +97,15 @@ class DatecsFiscalDevice:
         # OLD: DD-MM-YY HH:MM[:SS];
         # X: DD-MM-YY hh:mm:ss DST<SEP>
         if self.protocol == DatecsProtocol.X:
-            data = date_time.strftime('%d-%m-%y %H:%M:%S DST')
+            data = date_time.strftime('%d-%m-%y %H:%M:%S DST') + self.protocol.SEP
+            err_index = 0
         else:
             data = date_time.strftime('%d-%m-%y %H:%M:%S')
+            err_index = -1
 
-        data = data + self.protocol.SEP
         fr = self.execute(CMD_SET_DATE_TIME, bytearray(data, 'ascii'))
-        if fr.no_errors(0, self.error_list):
+
+        if fr.no_errors(err_index, self.error_list):
             return fr.ok
         else:
             raise DatecsError('SET_DATE_TIME', fr.error_code, fr.error_message)
