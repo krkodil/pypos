@@ -14,7 +14,7 @@
  <br> 
  Serial connection:
  <pre>
-    fd = DatecsFiscalDevice(EthernetConnector('192.168.0.36', 4999), DatecsProtocol.X)
+    fd = DatecsFiscalDevice(SerialConnector('COM1', 115200), DatecsProtocol.OLD)
     fd.connect()
     fd.set_date_time(datetime.now()):
     print('ECR DateTime is:', fd.get_date_time())
@@ -23,7 +23,7 @@
  <br> 
  Ethernet connection:
  <pre>
-    fd = DatecsFiscalDevice(SerialConnector('COM1', 115200), DatecsProtocol.OLD)
+    fd = DatecsFiscalDevice(EthernetConnector('192.168.0.36', 4999), DatecsProtocol.X)
     fd.connect()
     fd.set_date_time(datetime.now()):
     print('ECR DateTime is:', fd.get_date_time())
