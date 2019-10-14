@@ -1,8 +1,6 @@
 # pypos
-POS and ECR related tools
 
-<h3>datecs.py</h3>
- Quick draft of Datecs protocol for ECR
+<h3>Quick draft of Datecs protocol for ECR</h3>
  <ul>
     <li>Support all old devices (OLD legacy protocol):<br>
         &nbsp; DP-05, DP-25, DP-35, WP-50, DP-150 
