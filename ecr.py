@@ -136,9 +136,9 @@ class DatecsFiscalDevice:
                         'ServIn': float(fr.values[2])/100.00,
                         'ServOut': float(fr.values[3])/100.00}
         else:
-            raise DatecsError('CASH_IN_OUT', fr.error_code, fr.error_message)
+            raise DatecsError('CASH_AVAILABILITY', fr.error_code, fr.error_message)
 
-    def get_cash_in_out(self, amount):
+    def cash_in_out(self, amount):
         # X:
         #   Data: {Type}<SEP>{Amount}<SEP>  ('0'-cash in, '1'-cash out)
         #   Answer: {ErrorCode}<SEP>{CashSum}<SEP>{CashIn}<SEP>{CashOut}<SEP>
