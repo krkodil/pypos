@@ -12,10 +12,12 @@ TRM = 0x03
 CMD_PROGRAMMING = 0xff          # X Only: Programming {Name}<SEP>{Index}<SEP>{Value}<SEP>
 CMD_GET_DIAGNOSTIC_INFO = 0x5a  # Diagnostic information
 
-CMD_GET_DATE_TIME = 0x3e  #
+CMD_GET_DATE_TIME = 0x3e   #
 CMD_SET_DATE_TIME = 0x3d   # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<SEP>
 
 CMD_OPEN_FISCAL_RECEIPT = 0x30  # {OpCode}<SEP>{OpPwd}<SEP>{NSale}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
+
+CMD_CASH_IN_OUT = 0x46
 
 
 class DatecsError(Exception):
@@ -110,6 +112,52 @@ class DatecsFiscalDevice:
         else:
             raise DatecsError('SET_DATE_TIME', fr.error_code, fr.error_message)
 
+    def get_cash_availability(self):
+        # X:
+        #   Data: {Type}<SEP>{Amount}<SEP>  ('0'-cash in, '1'-cash out)
+        #   Answer: {ErrorCode}<SEP>{CashSum}<SEP>{CashIn}<SEP>{CashOut}<SEP>
+        # OLD:
+        #   Data: [<Amount>]
+        #   Answer: ExitCode,CashSum,ServIn,ServOut
+
+        if self.protocol == DatecsProtocol.X:
+            data = '0' + self.protocol.SEP + '0.00' + self.protocol.SEP
+        else:
+            data = '0.00'
+
+        fr = self.execute(CMD_CASH_IN_OUT, bytearray(data, 'ascii'))
+        if fr.no_errors(0, self.error_list):
+            if self.protocol == DatecsProtocol.X:
+                return {'CashSum': float(fr.values[1]),
+                        'ServIn': float(fr.values[2]),
+                        'ServOut': float(fr.values[3])}
+            else:
+                return {'CashSum': float(fr.values[1])/100.00,
+                        'ServIn': float(fr.values[2])/100.00,
+                        'ServOut': float(fr.values[3])/100.00}
+        else:
+            raise DatecsError('CASH_IN_OUT', fr.error_code, fr.error_message)
+
+    def get_cash_in_out(self, amount):
+        # X:
+        #   Data: {Type}<SEP>{Amount}<SEP>  ('0'-cash in, '1'-cash out)
+        #   Answer: {ErrorCode}<SEP>{CashSum}<SEP>{CashIn}<SEP>{CashOut}<SEP>
+        # OLD:
+        #   Data: [<Amount>]
+        #   Answer: ExitCode,CashSum,ServIn,ServOut
+
+        if self.protocol == DatecsProtocol.X:
+            data = '0' if amount > 0 else '-1' + self.protocol.SEP + \
+                   "{0:.2f}".format(abs(amount)) + self.protocol.SEP
+        else:
+            data = "{0:.2f}".format(amount)
+
+        fr = self.execute(CMD_CASH_IN_OUT, bytearray(data, 'ascii'))
+        if fr.no_errors(0, self.error_list):
+            return fr.ok
+        else:
+            raise DatecsError('CASH_IN_OUT', fr.error_code, fr.error_message)
+
     def open_fiscal_receipt(self, operator, password, work_place, n_sale):
         # Syntax 1: {OpCode}<SEP>{OpPwd}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
         # Syntax 2: {OpCode}<SEP>{OpPwd}<SEP>{NSale}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
@@ -118,7 +166,7 @@ class DatecsFiscalDevice:
             data += n_sale + self.protocol.SEP
         data += str(work_place) + self.protocol.SEP + self.protocol.SEP
 
-        fr = self.execute(CMD_OPEN_FISCAL_RECEIPT, bytearray(data))
+        fr = self.execute(CMD_OPEN_FISCAL_RECEIPT, bytearray(data, 'ascii'))
         if fr.no_errors(0, self.error_list):
             return fr.ok
         else:

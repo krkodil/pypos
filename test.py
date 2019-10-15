@@ -12,6 +12,8 @@ if __name__ == '__main__':
             if fd.set_date_time(dt):
                 print('Set DateTime to:', dt)
             print('ECR DateTime is:', fd.get_date_time())
+
+            print('Cash availability:', fd.get_cash_availability())
         finally:
             fd.disconnect()
 
@@ -22,5 +24,7 @@ if __name__ == '__main__':
             if fd.set_date_time(dt):
                 print('Set DateTime to:', dt)
             print('ECR DateTime is:', fd.get_date_time())
+
+            print('Cash availability:', fd.get_cash_availability())
         finally:
             fd.disconnect()
