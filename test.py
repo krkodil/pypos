@@ -13,6 +13,7 @@ if __name__ == '__main__':
                 print('Set DateTime to:', dt)
             print('ECR DateTime is:', fd.get_date_time())
 
+            fd.cash_in_out(20.123)
             print('Cash availability:', fd.get_cash_availability())
         finally:
             fd.disconnect()

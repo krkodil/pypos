@@ -147,8 +147,8 @@ class DatecsFiscalDevice:
         #   Answer: ExitCode,CashSum,ServIn,ServOut
 
         if self.protocol == DatecsProtocol.X:
-            data = '0' if amount > 0 else '-1' + self.protocol.SEP + \
-                   "{0:.2f}".format(abs(amount)) + self.protocol.SEP
+            data = '0' if amount > 0 else '-1'
+            data += self.protocol.SEP + "{0:.2f}".format(abs(amount)) + self.protocol.SEP
         else:
             data = "{0:.2f}".format(amount)
 
