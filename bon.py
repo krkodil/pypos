@@ -1,23 +1,31 @@
 from enum import Enum
 
 
-class Pay(Enum):
+class PayMode(Enum):
     CASH = 0,
     CARD = 1,
     ON_DELIVERY = 2
 
+    def __str__(self):
+        return str(self.value[0])
 
-class Article:
-    def __init__(self, name, quantity, price, measure=b''):
+
+class Product:
+    def __init__(self, name, quantity, price, unit='', tax_cd=2):
         self.name = name
         self.quantity = round(quantity, 3)
         self.price = round(price, 2)
-        self.measure = measure
+        self.unit = unit
+        self.tax_cd = tax_cd
+
+    def total(self):
+        return round(self.quantity * self.price, 2)
 
 
 class FiscalBon:
 
-    def __init__(self, operator, password, work_place, n_sale=None, storno_reason=None, storno_doc=None, storno_dt=None):
+    def __init__(self, operator, password, work_place,
+                 n_sale=None, storno_reason=None, storno_doc=None, storno_dt=None, fm_number=None):
         self.operator = operator
         self.password = password
         self.work_place = work_place
@@ -25,15 +33,24 @@ class FiscalBon:
         self.storno_reason = storno_reason
         self.storno_doc = storno_doc
         self.storno_dt = storno_dt
-        self.articles = []
+        self.fm_number = fm_number
+        self.products = []
         self.total = 0
-        self.pay_type = Pay.CASH
+        self.pay_mode = PayMode.CASH
+        self.payed = 0
 
-    def add(self, article):
-        self.articles.append(article)
-        self.total += round(article.quantity*article.price, 2)
+    def __enter__(self):
+        return self
 
-    def close(self, pay_type, amount):
-        self.pay_type = pay_type
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def add(self, product):
+        self.products.append(product)
+        self.total += product.total()
+
+    def close(self, amount, pay_mode=PayMode.CASH):
         if amount < self.total:
             raise Exception('Insufficient amount')
+        self.pay_mode = pay_mode
+        self.payed = amount

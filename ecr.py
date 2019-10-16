@@ -9,15 +9,19 @@ NAK = 0x15
 SYN = 0x16
 TRM = 0x03
 
-CMD_PROGRAMMING = 0xff          # X Only: Programming {Name}<SEP>{Index}<SEP>{Value}<SEP>
+CMD_GET_DATE_TIME = 0x3e        # Read date and time
+CMD_SET_DATE_TIME = 0x3d        # Set date and time
+
+CMD_OPEN_FISCAL_RECEIPT = 0x30  # Open fiscal receipt
+CMD_FISCAL_SALE = 0x31          # Registration of sale
+CMD_TOTAL = 0x35                # Payments and calculation of the total sum (TOTAL)
+CMD_FISCAL_CLOSE = 0x38         # Close fiscal receipt
+CMD_FISCAL_CANCEL = 0x3C        # Cancel fiscal receipt
+CMD_LAST_FISCAL_RECORD = 0x56   # Date of the last fiscal record
+CMD_CASH_IN_OUT = 0x46          # Cash in and Cash out operations
+
 CMD_GET_DIAGNOSTIC_INFO = 0x5a  # Diagnostic information
-
-CMD_GET_DATE_TIME = 0x3e   #
-CMD_SET_DATE_TIME = 0x3d   # OLD: DD-MM-YY HH:MM[:SS]; X: DD-MM-YY hh:mm:ss DST<SEP>
-
-CMD_OPEN_FISCAL_RECEIPT = 0x30  # {OpCode}<SEP>{OpPwd}<SEP>{NSale}<SEP>{TillNmb}<SEP>{Invoice}<SEP>
-
-CMD_CASH_IN_OUT = 0x46
+CMD_PROGRAMMING = 0xff          # Programming (X devices only)
 
 
 class DatecsError(Exception):
@@ -35,6 +39,8 @@ class DatecsFiscalDevice:
         self.protocol = protocol
         self.error_list = DatecsErrors()
         self.last_packet = None
+        self.last_slip = None
+        self.last_slip_timestamp = None
         self.connected = False
 
     def connect(self):
@@ -172,10 +178,63 @@ class DatecsFiscalDevice:
         else:
             raise DatecsError('OPEN_FISCAL_RECEIPT', fr.error_code, fr.error_message)
 
-    # Syntax: {OpCode}<SEP>{OpPwd}<SEP>{TillNmb}<SEP>{Storno}<SEP>{DocNum}<SEP>{DateTime}<SEP>
-    #         {FMNumber}<SEP>{Invoice}<SEP>{ToInvoice}<SEP>{Reason}<SEP>{NSale}<SEP>
+    def fiscal_sale(self, plu_name, tax_cd, price, quantity=0, unit=''):
+        # OLD: [<L1>][<LF><L2>]<Tab><TaxCd><[Sign]Price>[*<Qwan>][,Perc|;Abs]
+        # X:   {PluName}<SEP>{TaxCd}<SEP>{Price}<SEP>{Quantity}<SEP>
+        #      {DiscountType}<SEP>{DiscountValue}<SEP>{Department}<SEP>{Unit}<SEP>
+        data = str(plu_name) + self.protocol.SEP
+        data += str(tax_cd) + self.protocol.SEP
+        data += "{0:.2f}".format(price) + self.protocol.SEP
+        if quantity > 0:
+            data += "{0:.3f}".format(quantity)
+        data += 3 * self.protocol.SEP
+        data += '0' + self.protocol.SEP     # '0' - without department
+        data += unit + self.protocol.SEP
+
+        fr = self.execute(CMD_FISCAL_SALE, bytearray(data, 'ascii'))
+        if fr.no_errors(0, self.error_list):
+            return fr.ok
+        else:
+            raise DatecsError('FISCAL_SALE', fr.error_code, fr.error_message)
+
+    def total(self, pay_mode, amount):
+        # OLD: [<Line1>][<LF><Line2>]<Tab>[[<PaidMode>]<[Sign]Amount>][*<Type>]
+        # X:   {PaidMode}<SEP>{Amount}<SEP>{Type}<SEP>
+        data = str(pay_mode) + self.protocol.SEP
+        data += "{0:.2f}".format(amount) + 2 * self.protocol.SEP
+        fr = self.execute(CMD_TOTAL, bytearray(data, 'ascii'))
+        if fr.no_errors(0, self.error_list):
+            return fr.ok
+        else:
+            raise DatecsError('TOTAL', fr.error_code, fr.error_message)
+
     def open_storno_document(self):
+        # Syntax: {OpCode}<SEP>{OpPwd}<SEP>{TillNmb}<SEP>{Storno}<SEP>{DocNum}<SEP>{DateTime}<SEP>
+        #         {FMNumber}<SEP>{Invoice}<SEP>{ToInvoice}<SEP>{Reason}<SEP>{NSale}<SEP>
         pass    # todo ...
+
+    def close_bon(self):
+        fr = self.execute(CMD_FISCAL_CLOSE)
+        if fr.no_errors(0, self.error_list):
+            self.last_slip = fr.values[1]       # Current slip number (1...9999999);
+            return fr.ok
+        else:
+            raise DatecsError('FISCAL_CANCEL', fr.error_code, fr.error_message)
+
+    def cancel_bon(self):
+        fr = self.execute(CMD_FISCAL_CANCEL)
+        if fr.no_errors(0, self.error_list):
+            return fr.ok
+        else:
+            raise DatecsError('FISCAL_CANCEL', fr.error_code, fr.error_message)
+
+    def read_bon_timestamp(self):
+        fr = self.execute(CMD_LAST_FISCAL_RECORD)
+        if fr.no_errors(0, self.error_list):
+            self.last_slip_timestamp = fr.values
+            return fr.ok
+        else:
+            raise DatecsError('LAST_FISCAL_RECORD', fr.error_code, fr.error_message)
 
     def print(self, bon):
         if bon.storno_reason is None:
@@ -183,6 +242,11 @@ class DatecsFiscalDevice:
         else:
             self.open_storno_document()
 
-        # todo: add articles
-
-        # todo: close bon
+        try:
+            for p in bon.products:
+                self.fiscal_sale(p.name, p.tax_cd, p.price, p.quantity, p.unit)
+            self.total(bon.pay_mode, bon.payed)
+            self.close_bon()
+        except Exception:
+            self.cancel_bon()
+            raise
