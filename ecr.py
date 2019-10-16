@@ -38,6 +38,8 @@ class DatecsFiscalDevice:
         self.connector = connector
         self.protocol = protocol
         self.error_list = DatecsErrors()
+        self.model = None
+        self.serial_number = None
         self.last_packet = None
         self.last_slip = None
         self.last_slip_timestamp = None
@@ -46,6 +48,7 @@ class DatecsFiscalDevice:
     def connect(self):
         self.connector.connect()
         self.connected = True
+        self.get_status()
         return True
 
     def disconnect(self):
@@ -86,6 +89,27 @@ class DatecsFiscalDevice:
             response_data = self.wait_response()
 
         return FiscalResponse(response_data, self.protocol)
+
+    def get_status(self):
+        if self.protocol == DatecsProtocol.X:
+            err_index = 0
+            data = self.protocol.SEP
+        else:
+            err_index = -1
+            data = ''
+
+        fr = self.execute(CMD_GET_DIAGNOSTIC_INFO, bytearray(data, 'ascii'))
+
+        if fr.no_errors(err_index, self.error_list):
+            if self.protocol == DatecsProtocol.X:
+                self.model = fr.values[1]
+                self.serial_number = fr.values[7]
+            else:
+                self.model = fr.values[0]
+                self.serial_number = fr.values[4]
+            return fr.ok
+        else:
+            raise DatecsError('GET_DIAGNOSTIC_INFO', fr.error_code, fr.error_message)
 
     def get_date_time(self):
         fr = self.execute(CMD_GET_DATE_TIME)
